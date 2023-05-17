@@ -65,7 +65,7 @@ pokemon_width = 63
 image_dir = root_folder + '/dir'
 template_dir = root_folder + '/template'
 create_folder(image_dir)
-time.sleep(1)
+
 img_path = "/home/deeteecee/PycharmProjects/pikauto/pikakaka.jpg"
 main_img = cv2.imread(img_path)
 cut(img_path, image_dir, pokemon_height, pokemon_width)
@@ -210,35 +210,31 @@ def bfs(matrix, start, end):
     cols = len(matrix[0])
     visited = [[False] * cols for _ in range(rows)]  # Initialize visited matrix
     parent = [[None] * cols for _ in range(rows)]  # Initialize parent matrix
-
-    # Define the possible movements: up, down, left, right
-    directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
-
-    queue = deque([(start[0], start[1])])  # Queue to store cells to visit
+    directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]  # Define possible movements: up, down, left, right
+    queue = deque([(start[0], start[1], None, 0)])  # Queue to store cells to visit, along with previous direction and number of turns
 
     while queue:
-        row, col = queue.popleft()
+        row, col, prev_direction, turns = queue.popleft()
 
         if (row, col) == end:
             break  # Found the end point
 
         visited[row][col] = True  # Mark current cell as visited
 
-        # Explore the neighbors
         for dx, dy in directions:
             new_row, new_col = row + dx, col + dy
 
-            # Check if the new coordinates are valid and the cell can be visited
             if 0 <= new_row < rows and 0 <= new_col < cols and not visited[new_row][new_col]:
-                if (new_row, new_col) == end or matrix[new_row][new_col] == 1:
-                    queue.append((new_row, new_col))
+                new_turns = turns + int((prev_direction is not None and (dx, dy) != prev_direction))
+
+                if new_turns <= 2 and (new_row, new_col) == end or matrix[new_row][new_col] == 1:
+                    queue.append((new_row, new_col, (dx, dy), new_turns))
                     visited[new_row][new_col] = True
                     parent[new_row][new_col] = (row, col)
 
     if parent[end[0]][end[1]] is None:
         return []  # Path not found
 
-    # Reconstruct the path from the end point to the start point
     path = []
     curr = end
     while curr:
@@ -249,14 +245,25 @@ def bfs(matrix, start, end):
     return path
 
 
-match_m = [[1 if i == 0 or i == 9 or j == 0 or j == 16 else 0 for j in range(17)] for i in range(10)]
+
+rows = 11
+cols = 18
+
+# Create an empty matrix filled with zeros
+match_m = [[0] * cols for _ in range(rows)]
+
+# Set border elements to 1
+for idx in range(rows):
+    for jdx in range(cols):
+        if idx == 0 or idx == rows - 1 or jdx == 0 or jdx == cols - 1:
+            match_m[idx][jdx] = 1
 
 
 def matchable(matrix, _x, _y, x, y):
     start = (_x, _y)
     end = (x, y)
-    path, turns = bfs1(matrix, start, end)
-    if path is not None:
+    path = bfs(matrix, start, end)
+    if len(path) > 0:
         return path, True
     else:
         return [], False
@@ -285,8 +292,18 @@ def paint_black(image, i, j):
 padding = 50
 
 
+def get_center(i, j):
+    return (i*pokemon_width+pokemon_width//2, j*pokemon_height+pokemon_height//2)
+
+
+def draw_path(img, i, j, i_d, j_d):
+    center_1 = get_center(i, j)
+    center_2 = get_center(i_d, j_d)
+
+    cv2.line(img, center_1, center_2, (0, 0, 255), thickness=2)
+
+
 def play():
-    cnt = 0
     while not is_matrix_all_ones(match_m):
         for i, row_m in enumerate(m):
             for j, element in enumerate(row_m):
@@ -295,27 +312,34 @@ def play():
                         if (i, j) != (i_x, j_x) and element == element_x and element != "0" and element_x != "0":
                             if (i, j) in pts_storage or (i_x, j_x) in pts_storage:
                                 continue
-                            path, match = matchable(match_m, i, j, i_x, j_x)
+
+                            path, match = matchable(match_m, i+1, j+1, i_x+1, j_x+1)
+
                             if match is True:
-                                cnt += 1
-                                print((i, j), (i_x, j_x))
-                                print(path)
+                                print(i+1, j+1, i_x+1, j_x+1, path, match)
+                                # for i, p in enumerate(path):
+                                #     if i < len(path)-1:
+                                #         p1 = path[i]
+                                #         p2 = path[i+1]
+                                #         draw_path(main_img, p1[0], p1[1], p2[0], p2[1])
+                                # cv2.imshow('res', main_img)
+                                # cv2.waitKey(500)
                                 m[i][j] = "0"
                                 m[i_x][j_x] = "0"
-                                match_m[i][j] = 1
-                                match_m[i_x][j_x] = 1
+                                match_m[i+1][j+1] = 1
+                                match_m[i_x+1][j_x+1] = 1
                                 pts_storage.append((i, j))
                                 pts_storage.append((i_x, j_x))
+                                print(len(pts_storage))
                                 paint_black(main_img, j, i)
                                 paint_black(main_img, j_x, i_x)
-
                                 cv2.imshow('res', main_img)
-                                cv2.waitKey(1000)
+                                cv2.waitKey(500)
 
 
 play()
-cv2.destroyAllWindows()
-print(len(pts_storage))
+
+
 # print(cnt)
 # while True:
 #     play()
